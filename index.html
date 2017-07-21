@@ -93,6 +93,21 @@
                         <label for='mixSamples' class='right inline'>Mixing Samples: </label>
                         <input type='number' id='mixingSamples', step='1' value='200' onchange='updateMixingSamples()'></input>
                     </div>
+                    <div>
+                    	<h3>Monte Carlo Options</h3>
+                    	<label for ='nParticles' class = 'right inline'>Number of Particles: </label>
+                    	<input type='number' id='nParticles', step='100' value='10000' onchange='updateNParticles()'></input>
+                    </div>
+                    <div>
+                    	<label for ='nBins' class ='right inline'>Number of Bins: </label>
+                    	<input type='number' id='nBins', step='1'value = '20' onchange='updateNBins()'></input>
+                    </div>
+                    <div>
+                    	<button type="button" onclick='MonteCarlo()'>Simulate!</button> 
+                    </div>
+                    <div>
+                    	<button type="button" onclick='resetMC()'>Reset!</button>
+                    </div>
                 </form>
 
                 <p id="error1"></p>

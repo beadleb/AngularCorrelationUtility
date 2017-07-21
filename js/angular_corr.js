@@ -13,6 +13,7 @@ function plot(setup){
         plotWidth = document.getElementById('plotCol').offsetWidth,
         plotHeight = plotWidth*3/4,
         i, j, x, y, row;
+        yarray = [];
 
     //generate data to plot
     for(i = 0; i < width; i++) {
@@ -25,6 +26,7 @@ function plot(setup){
             }
         } else {
             row.push(y);
+            yarray.push(y);
         }
         data.push(row);
     }
@@ -39,11 +41,11 @@ function plot(setup){
                 xlabel: "cos &#952",
                 ylabel: "W(&#952)",
                 labels: ['Cos','W'],
-                color: "red",
+                colors: ["red"],
                 strokeWidth: 3.0,
                 valueRange: [0.0, 2.0],
                 width: plotWidth,
-                height: plotHeight
+                height: plotHeight,
             }
         );
     } else {
@@ -246,6 +248,7 @@ function recalculate(){
         noL2mix = false,
         min = dataStore.minMix,
         max = dataStore.maxMix;
+        yarray = [];
 
     if (l1a==l1b){
         noL1mix = true;
@@ -316,6 +319,153 @@ function recalculate(){
         document.getElementById('aParametricPlot').innerHTML = '';
     }
 };
+
+//////////////////
+// Monte Carlo (BY ZFB)
+/////////////////
+function MonteCarlo(){
+
+
+///
+///////  Set up Monte Carlo
+//
+	var MonteCarlo = 0;
+	updateNBins();
+	updateNParticles();
+	recalculate();
+	if (dataStore.NBins <= 0) {
+		alert("Use a positive number of bins.")
+		return;
+	}
+	if (1000%dataStore.NBins != 0) {
+		alert("Use a number of bins that evenly divides 1000.");
+		return;
+	}
+	if (dataStore.NParticles <= 0) {
+		alert("Use a positive number of particles.")
+	}
+	var binSize = 1000/dataStore.NBins;
+	
+	var probabilities = [];
+	var binX = [];
+	
+	for(i=0; i<dataStore.NBins; ++i) {
+		binStart = i*binSize;
+		binEnd = (i+1)*binSize;
+		binX.push(binStart+(binEnd/2));
+		}
+	var integrate;
+	var ii;
+	var trap;
+	var binRange = [];	
+
+	for (i=0; i<dataStore.NBins; ++i) {
+	integrate = 0;
+		for (ii=(i*binSize); ii<((i+1)*binSize)-1; ++ii) {
+			trap = (yarray[ii]+yarray[ii+1])/2;
+			integrate += trap;
+		}
+		probabilities.push(integrate);
+		if (i != 0) {
+			binRange[i] = binRange[i-1] + integrate;
+		}
+		else {
+			binRange[i] = integrate;
+		}
+	}
+
+	var scalar;
+	scalar = 1/(binRange[binRange.length-1]);
+
+	for (i=0; i<dataStore.NBins; ++i) {
+		binRange[i] *= scalar;
+	}
+
+	///////////////
+	////  Begin Monte Carlo!!
+	//////////////
+
+	var particle;	
+	var counters = [];
+
+	for (i=0; i<dataStore.NBins; ++i) {
+		counters[i] = 0;
+	}
+
+	for (i=0; i<dataStore.NParticles; ++i) {
+		particle = Math.random();
+		for (ii=0; ii<dataStore.NBins; ++ii) {
+			if (particle < binRange[ii]) {
+				counters[ii]+=1;
+				break;
+			}
+		}	
+	}
+	
+	var ymin = Math.min.apply(Math, yarray);
+	scalar = ymin/Math.min.apply(Math, counters);
+
+	var errors = [];
+	for (i=0; i<dataStore.NBins; ++i) {
+		errors.push(Math.sqrt(counters[i]));
+		counters[i] *= scalar;
+		errors[i] *= scalar;
+	}
+
+    var graph = document.getElementById("graph_div"),
+        width = 1000,
+        x1 = -1,
+        x2 = 1,
+        a2 = parseFloat(document.getElementById("a2").value),
+        a4 = parseFloat(document.getElementById("a4").value),
+        xs = 1.0 * (x2 - x1) / width,
+        data = [],
+        plotWidth = document.getElementById('plotCol').offsetWidth,
+        plotHeight = plotWidth*3/4,
+        i, j, x, y, row;
+	ii =0;
+
+    //generate data to plot
+    for(i = 0; i < width; i++) {
+        x = x1 + i * xs;
+        y = 1 + a2 / 2 * (3 * x * x - 1) + a4 / 8 * (35 * x * x * x * x - 30 * x * x + 3);
+	row = [x];
+        if(y.length > 0) {
+            for(j = 0; j < y.length; j++) {
+                row.push([y[j],0]);
+            }
+        } else {
+            row.push([y,0]);
+        }
+	if (i != ii*binSize+Math.floor(binSize/2)) {
+		row.push(null);
+	}
+	else {
+		row.push([counters[ii],errors[ii]]);
+		ii+=1;
+	}
+        data.push(row);
+    }
+	dataStore.plot.updateOptions( {'file': data ,
+					labels: ['Cos','W','Monte Carlo'],
+					colors: ["red","blue"],
+					errorBars: true 
+					})
+	dataStore.plot.updateOptions({	
+					'Monte Carlo': {
+							strokeWidth: 0.0,
+							highlightCircleSize: 10
+							},
+					plotter: [
+						singleErrorPlotter,
+						Dygraph.Plotters.linePlotter
+						]
+					});
+		
+	MonteCarlo = 1;
+	return 0;
+};
+
 
 //////////////////
 // Physics
@@ -625,6 +775,30 @@ function oddA(){
 /////////////////
 // helpers
 /////////////////
+function singleErrorPlotter(e) {
+  var ctx = e.drawingContext;
+  var points = e.points;
+  var g = e.dygraph;
+  var color = e.color;
+  ctx.save();
+  ctx.strokeStyle = e.color;
+
+  for (var i = 0; i < points.length; i++) {
+    var p = points[i];
+    var center_x = p.canvasx;
+    if (isNaN(p.y_bottom)) continue;
+
+    var low_y = g.toDomYCoord(p.yval_minus),
+        high_y = g.toDomYCoord(p.yval_plus);
+
+    ctx.beginPath();
+    ctx.moveTo(center_x, low_y);
+    ctx.lineTo(center_x, high_y);
+    ctx.stroke();
+   }
+
+   ctx.restore();
+}
 
 function Factorial(value){
 
@@ -652,13 +826,25 @@ function syncElements(source, dest){
     var val = document.getElementById(source).value;
     document.getElementById(dest).value = val;
 }
+function updateNParticles(){
+	dataStore.NParticles = parseInt(document.getElementById('nParticles').value,10);
+	var nParticles=parseInt(document.getElementById('nParticles').value,10);
+}
 
+function updateNBins(){
+	dataStore.NBins =parseInt(document.getElementById('nBins').value,10);
+	var nBins = parseInt(document.getElementById('nBins').value,10);
+
+}
 
 function updateMixingSamples(){
     dataStore.steps = parseInt(document.getElementById('mixingSamples').value,10);
     recalculate();
 }
-
+function resetMC(){
+	plot(1);
+	plot();
+}
 function updateMixLimits(){
     dataStore.minMix = parseFloat(document.getElementById('minMix').value,10);
     dataStore.maxMix = parseFloat(document.getElementById('maxMix').value,10);
