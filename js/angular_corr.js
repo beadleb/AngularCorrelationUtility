@@ -402,14 +402,10 @@ function MonteCarlo(){
 		}	
 	}
 	
-	var ymin = Math.min.apply(Math, yarray);
-	scalar = ymin/Math.min.apply(Math, counters);
 
 	var errors = [];
 	for (i=0; i<dataStore.NBins; ++i) {
 		errors.push(Math.sqrt(counters[i]));
-		counters[i] *= scalar;
-		errors[i] *= scalar;
 	}
 
     var graph = document.getElementById("graph_div"),
@@ -422,6 +418,9 @@ function MonteCarlo(){
         data = [],
         plotWidth = document.getElementById('plotCol').offsetWidth,
         plotHeight = plotWidth*3/4,
+	xintersect = [],
+	iintersect = [],
+	sumActual, sumMC,
         i, j, x, y, row;
 	ii =0;
 
@@ -442,10 +441,29 @@ function MonteCarlo(){
 	}
 	else {
 		row.push([counters[ii],errors[ii]]);
+		xintersect.push(x);
+		iintersect.push(i);
 		ii+=1;
 	}
         data.push(row);
     }
+
+	//normalization
+	sumActual = 0;
+	sumMC = 0;
+	for(i=0; i< dataStore.NBins; ++i) {
+		sumActual += yarray[iintersect[i]];
+		sumMC += data[iintersect[i]][2][0];
+	}
+	scalar = sumActual/sumMC;
+	for(i=0; i<dataStore.NBins; ++i) {
+		data[iintersect[i]][2][0] *= scalar;
+		data[iintersect[i]][2][1] *= scalar;
+	}
+
+
+
+	//plotting
 	dataStore.plot.updateOptions( {'file': data ,
 					labels: ['Cos','W','Monte Carlo'],
 					colors: ["red","blue"],
@@ -559,6 +577,8 @@ function GRIFFINMC() {
         i, j, x, y, row;
 	ii =0;
 
+	var iintersect = [];
+
     //generate data to plot
     for(i = 0; i < width; i++) {
         x = x1 + i * xs;
@@ -577,6 +597,7 @@ function GRIFFINMC() {
 	}
 	else {
 		row.push([counters[ii],errors[ii]]);
+		iintersect.push(i);
 		ii+=1;
 		if (ii < nBins) {
 			cosines[ii]=cosines[ii].toFixed(2);
@@ -584,6 +605,21 @@ function GRIFFINMC() {
 	}
         data.push(row);
     }
+
+	var sumActual = 0;
+	var sumMC = 0;
+	for(i=0; i< nBins; ++i) {
+		sumActual += yarray[iintersect[i]];
+		sumMC += data[iintersect[i]][2][0];
+	}
+	var scalar = sumActual/sumMC;
+	for(i=0; i<nBins; ++i) {
+		data[iintersect[i]][2][0] *= scalar;
+		data[iintersect[i]][2][1] *= scalar;
+	}
+
+
+	
 	dataStore.plot.updateOptions( {'file': data ,
 					labels: ['Cos','W','Monte Carlo'],
 					colors: ["red","blue"],
