@@ -329,7 +329,6 @@ function MonteCarlo(){
 ///
 ///////  Set up Monte Carlo
 //
-	var MonteCarlo = 0;
 	updateNBins();
 	updateNParticles();
 	recalculate();
@@ -380,6 +379,7 @@ function MonteCarlo(){
 	for (i=0; i<dataStore.NBins; ++i) {
 		binRange[i] *= scalar;
 	}
+
 
 	///////////////
 	////  Begin Monte Carlo!!
@@ -462,10 +462,145 @@ function MonteCarlo(){
 						]
 					});
 		
-	MonteCarlo = 1;
 	return 0;
 };
 
+function GRIFFINMC() {
+	recalculate();
+	updateNParticles();
+	var angles=[0,18.76,25.6,26.69,31.94,33.65,44.36,46.79,48.57,49.79,53.83,60.15,62.70,63.08,65.01,66.46,67.45,69.86,70.86,73.08,76.38,78.66,83.04,84.23,86.22,88.47,91.52,93.77,96.95,101.33,103.61,106.91,109.14,110.13,112.54,113.35,114.98,116.91,117.29,119.84,126.16,130.20,131.42,133.20,135.63,146.34,148.05,152.31,154.39,160.21,180.00];
+	var weights=[64,128,64,64,64,48,128,96,128,96,48,96,48,64,96,64,64,64,96,64,96,64,64,64,48,128,128,112,64,64,96,64,96,64,64,64,96,64,48,96,48,96,128,96,128,48,64,64,64,128,64];
+			
+	var cosines=[];
+	var nBins=angles.length;
+	var i, ii, iii;
+	
+	for (i=0; i<nBins; ++i) {
+		angles[i] *=(3.1415926/180);
+		cosines[i] = Math.cos(angles[i]);
+		cosines[i] = cosines[i].toFixed(2);
+	}
+	
+	for (i=0; i<nBins; ++i) {
+		cosines[i] *= 100;
+		if (cosines[i]%2 !=0) {
+			cosines[i]+=1;
+		}
+		cosines[i] *= 0.01;
+	}
+
+	var angCorrs = [];
+	
+        var a2 = parseFloat(document.getElementById("a2").value);
+        var a4 = parseFloat(document.getElementById("a4").value);
+	var sum = 0;
+	
+	for (i=0; i<nBins; ++i) {
+		angCorrs[i] = 1 + a2 / 2 * (3 * cosines[i] * cosines[i] - 1) + a4 / 8 * (35 * cosines[i] * cosines[i] * cosines[i] * cosines[i] - 30 * cosines[i] * cosines[i] + 3);
+		angCorrs[i] *= weights[i];
+		sum += angCorrs[i]
+	}
+	
+	sum = 1/sum;
+	var tally = 0;
+	for (i=0; i<nBins; ++i) {
+		angCorrs[i] = tally + angCorrs[i]*sum;
+		tally = angCorrs[i];
+	}
+	
+	///////////////
+	////  Begin Monte Carlo!!
+	//////////////
+
+	var particle;	
+	var counters = [];
+
+	for (i=0; i<nBins; ++i) {
+		counters[i] = 0;
+	}
+
+	for (i=0; i<dataStore.NParticles; ++i) {
+		particle = Math.random();
+		for (ii=0; ii<nBins; ++ii) {
+			if (particle < angCorrs[ii]) {
+				counters[ii]+=1;
+				break;
+			}
+		}	
+	}
+	
+	var errors = [];
+	for (i=0; i<nBins; ++i) {
+		errors.push(Math.sqrt(counters[i]));
+		counters[i] *= 1/weights[i];
+	}
+	var ymin = Math.min.apply(Math, yarray);
+	scalar = ymin/Math.min.apply(Math, counters);
+
+	for (i=0; i<nBins; ++i) {
+		counters[i] *= scalar;
+		errors[i] *= scalar;
+		errors[i] *= 1/weights[i];
+		cosines[i] *= -1;
+	}
+
+
+	
+    var graph = document.getElementById("graph_div"),
+        width = 1000,
+        x1 = -1,
+        x2 = 1,
+        a2 = parseFloat(document.getElementById("a2").value),
+        a4 = parseFloat(document.getElementById("a4").value),
+        xs = 1.0 * (x2 - x1) / width,
+        data = [],
+        plotWidth = document.getElementById('plotCol').offsetWidth,
+        plotHeight = plotWidth*3/4,
+        i, j, x, y, row;
+	ii =0;
+
+    //generate data to plot
+    for(i = 0; i < width; i++) {
+        x = x1 + i * xs;
+	x = x.toFixed(2);
+        y = 1 + a2 / 2 * (3 * x * x - 1) + a4 / 8 * (35 * x * x * x * x - 30 * x * x + 3);
+	row = [x];
+        if(y.length > 0) {
+            for(j = 0; j < y.length; j++) {
+                row.push([y[j],0]);
+            }
+        } else {
+            row.push([y,0]);
+        }
+	if (x != cosines[ii]) {
+		row.push(null);
+	}
+	else {
+		row.push([counters[ii],errors[ii]]);
+		ii+=1;
+		if (ii < nBins) {
+			cosines[ii]=cosines[ii].toFixed(2);
+		}
+	}
+        data.push(row);
+    }
+	dataStore.plot.updateOptions( {'file': data ,
+					labels: ['Cos','W','Monte Carlo'],
+					colors: ["red","blue"],
+					errorBars: true 
+					})
+	dataStore.plot.updateOptions({	
+					'Monte Carlo': {
+							strokeWidth: 0.0,
+							highlightCircleSize: 10
+							},
+					plotter: [
+						singleErrorPlotter,
+						Dygraph.Plotters.linePlotter
+						]
+					});	
+	return 0;
+}
 
 //////////////////
 // Physics
